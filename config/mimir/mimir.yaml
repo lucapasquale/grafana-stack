@@ -1,0 +1,17 @@
+target: all,store-gateway
+multitenancy_enabled: false
+
+server:
+  http_listen_port: 9009
+
+common:
+  path_prefix: /tmp/mimir
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /tmp/mimir/data
+  replication_factor: 1
+
+blocks_storage:
+  tsdb:
+    dir: /tmp/mimir/tsdb
