@@ -19,7 +19,7 @@ services:
     image: grafana/mimir:latest
     command: ["-config.file=/etc/mimir/mimir.yaml"]
     volumes:
-      - ./config/mimir/mimir.yaml:/etc/mimir/mimir.yaml
+      - ./config/mimir:/etc/mimir
     ports:
       - "9009:9009"
     restart: always
@@ -31,7 +31,7 @@ services:
     image: grafana/loki:latest
     command: -config.file=/etc/loki/loki.yaml
     volumes:
-      - ./config/loki/loki.yaml:/etc/loki/loki.yaml
+      - ./config/loki:/etc/loki
     ports:
       - "3100:3100"
     restart: always
@@ -43,7 +43,7 @@ services:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     volumes:
-      - ./config/tempo/tempo.yaml:/etc/tempo/tempo.yaml
+      - ./config/tempo:/etc/tempo
     ports:
       - "4317:4317"
       - "4318:4318"
@@ -58,7 +58,7 @@ services:
     command: ["--config.file=/etc/alloy/config.alloy"]
     network_mode: "host"
     volumes:
-      - ./config/alloy/config.alloy:/etc/alloy/config.alloy
+      - ./config/alloy:/etc/alloy
       - /var/log:/var/log
     restart: always
 
