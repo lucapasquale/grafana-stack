@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Botchini app metrics (PromEx)
+  # Update the target to match your botchini container/host
+  - job_name: "botchini"
+    static_configs:
+      - targets: ["host.docker.internal:4021"]
+        labels:
+          app: "botchini"
