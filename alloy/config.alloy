@@ -1,4 +1,37 @@
-// Alloy config - collects Docker container logs and ships to Loki
+// Alloy config - collects local Docker container logs and accepts remote log pushes
+
+// ============================================================
+// Remote log ingestion (for services on other VMs like botchini)
+// Accepts Loki push API on port 9095
+// ============================================================
+loki.source.api "push_receiver" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9095
+  }
+  forward_to = [loki.process.remote.receiver]
+}
+
+loki.process "remote" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.json {
+    expressions = {
+      level   = "severity",
+      message = "message",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "",
+    }
+  }
+}
+
+// ============================================================
+// Local Docker container log collection
+// ============================================================
 
 // Discover Docker containers
 discovery.docker "containers" {

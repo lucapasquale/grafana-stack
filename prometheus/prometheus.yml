@@ -8,9 +8,9 @@ scrape_configs:
       - targets: ["localhost:9090"]
 
   # Botchini app metrics (PromEx)
-  # Update the target to match your botchini container/host
+  # Set BOTCHINI_HOST to the internal IP of the Coolify VM
   - job_name: "botchini"
     static_configs:
-      - targets: ["host.docker.internal:4021"]
+      - targets: ["BOTCHINI_HOST:4021"]
         labels:
           app: "botchini"

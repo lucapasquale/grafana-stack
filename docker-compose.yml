@@ -77,6 +77,7 @@ services:
     image: grafana/alloy:latest
     ports:
       - "12345:12345"
+      - "9095:9095"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     configs:
@@ -97,4 +98,5 @@ volumes:
 
 networks:
   observability:
+    name: observability
     driver: bridge
