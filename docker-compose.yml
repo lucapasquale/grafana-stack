@@ -106,8 +106,6 @@ configs:
                 endpoint: "0.0.0.0:4317"
               http:
                 endpoint: "0.0.0.0:4318"
-        queue:
-          type: memory
 
       storage:
         trace:
@@ -131,10 +129,16 @@ configs:
             - url: http://prometheus:9090/api/v1/write
               send_exemplars: true
 
+      compactor:
+        compaction:
+          block_retention: 360h
+
       overrides:
-        metrics_generator_processors:
-          - service-graphs
-          - span-metrics
+        defaults:
+          metrics_generator:
+            processors:
+              - service-graphs
+              - span-metrics
 
   alloy_config:
     content: |
@@ -284,7 +288,7 @@ services:
       - observability
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.1
     ports:
       - "4317:4317"
       - "4318:4318"
