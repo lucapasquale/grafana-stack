@@ -114,7 +114,6 @@ configs:
             path: /var/tempo/blocks
           wal:
             path: /var/tempo/wal
-          block_retention: 360h
 
       metrics_generator:
         processor:
@@ -132,6 +131,10 @@ configs:
 
       overrides:
         defaults:
+          global:
+            max_bytes_per_trace: 0
+          storage:
+            trace_retention: 360h
           metrics_generator:
             processors:
               - service-graphs
