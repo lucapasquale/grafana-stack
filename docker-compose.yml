@@ -1,15 +1,3 @@
-configs:
-  grafana_datasources:
-    file: ./grafana/datasources.yaml
-  prometheus_config:
-    file: ./prometheus/prometheus.yml
-  loki_config:
-    file: ./loki/loki.yaml
-  tempo_config:
-    file: ./tempo/tempo.yaml
-  alloy_config:
-    file: ./alloy/config.alloy
-
 services:
   grafana:
     image: grafana/grafana:latest
@@ -17,9 +5,7 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-    configs:
-      - source: grafana_datasources
-        target: /etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -33,9 +19,7 @@ services:
       - "9090:9090"
     volumes:
       - prometheus-data:/prometheus
-    configs:
-      - source: prometheus_config
-        target: /etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--web.enable-remote-write-receiver"
@@ -50,9 +34,7 @@ services:
       - "3100:3100"
     volumes:
       - loki-data:/loki
-    configs:
-      - source: loki_config
-        target: /etc/loki/local-config.yaml
+      - ./loki/loki.yaml:/etc/loki/local-config.yaml:ro
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped
     networks:
@@ -65,9 +47,7 @@ services:
       - "4318:4318"
     volumes:
       - tempo-data:/var/tempo
-    configs:
-      - source: tempo_config
-        target: /etc/tempo.yaml
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
     command: ["-config.file=/etc/tempo.yaml"]
     restart: unless-stopped
     networks:
@@ -80,9 +60,7 @@ services:
       - "9095:9095"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    configs:
-      - source: alloy_config
-        target: /etc/alloy/config.alloy
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
     command: run /etc/alloy/config.alloy
     restart: unless-stopped
     depends_on:
