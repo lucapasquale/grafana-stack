@@ -1,3 +1,249 @@
+configs:
+  grafana_datasources:
+    content: |
+      apiVersion: 1
+
+      datasources:
+        - name: Prometheus
+          type: prometheus
+          access: proxy
+          url: http://prometheus:9090
+          isDefault: true
+          editable: true
+
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki:3100
+          editable: true
+          jsonData:
+            derivedFields:
+              - datasourceUid: tempo
+                matcherRegex: '"trace_id":"(\w+)"'
+                name: trace_id
+                url: "$${__value.raw}"
+
+        - name: Tempo
+          type: tempo
+          access: proxy
+          uid: tempo
+          url: http://tempo:3100
+          editable: true
+          jsonData:
+            tracesToLogsV2:
+              datasourceUid: loki
+              filterByTraceID: true
+            tracesToMetrics:
+              datasourceUid: prometheus
+            serviceMap:
+              datasourceUid: prometheus
+            lokiSearch:
+              datasourceUid: loki
+
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: "prometheus"
+          static_configs:
+            - targets: ["localhost:9090"]
+
+        - job_name: "botchini"
+          static_configs:
+            - targets: ["BOTCHINI_HOST:4021"]
+              labels:
+                app: "botchini"
+
+  loki_config:
+    content: |
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100
+        grpc_listen_port: 9096
+
+      common:
+        path_prefix: /loki
+        storage:
+          filesystem:
+            chunks_directory: /loki/chunks
+            rules_directory: /loki/rules
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+
+      schema_config:
+        configs:
+          - from: "2020-10-24"
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+
+      limits_config:
+        allow_structured_metadata: true
+        volume_enabled: true
+        retention_period: 360h
+
+      compactor:
+        working_directory: /loki/compactor
+        compaction_interval: 10m
+        retention_enabled: true
+        retention_delete_delay: 2h
+        retention_delete_worker_count: 150
+
+  tempo_config:
+    content: |
+      server:
+        http_listen_port: 3100
+
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: "0.0.0.0:4317"
+              http:
+                endpoint: "0.0.0.0:4318"
+
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/blocks
+          wal:
+            path: /var/tempo/wal
+
+      metrics_generator:
+        processor:
+          service_graphs:
+            dimensions:
+              - service.name
+          span_metrics:
+            dimensions:
+              - service.name
+        storage:
+          path: /var/tempo/generator/wal
+          remote_write:
+            - url: http://prometheus:9090/api/v1/write
+              send_exemplars: true
+
+      compactor:
+        compaction:
+          block_retention: 360h
+
+      overrides:
+        defaults:
+          metrics_generator:
+            processors:
+              - service-graphs
+              - span-metrics
+
+  alloy_config:
+    content: |
+      // Alloy config - collects local Docker container logs and accepts remote log pushes
+
+      // ============================================================
+      // Remote log ingestion (for services on other VMs like botchini)
+      // Accepts Loki push API on port 9095
+      // ============================================================
+      loki.source.api "push_receiver" {
+        http {
+          listen_address = "0.0.0.0"
+          listen_port    = 9095
+        }
+        forward_to = [loki.process.remote.receiver]
+      }
+
+      loki.process "remote" {
+        forward_to = [loki.write.loki.receiver]
+
+        stage.json {
+          expressions = {
+            level   = "severity",
+            message = "message",
+          }
+        }
+
+        stage.labels {
+          values = {
+            level = "",
+          }
+        }
+      }
+
+      // ============================================================
+      // Local Docker container log collection
+      // ============================================================
+
+      // Discover Docker containers
+      discovery.docker "containers" {
+        host = "unix:///var/run/docker.sock"
+      }
+
+      // Relabel to extract useful metadata
+      discovery.relabel "containers" {
+        targets = discovery.docker.containers.targets
+
+        rule {
+          source_labels = ["__meta_docker_container_name"]
+          target_label  = "container"
+        }
+
+        rule {
+          source_labels = ["__meta_docker_container_log_stream"]
+          target_label  = "stream"
+        }
+
+        rule {
+          source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+          target_label  = "service"
+        }
+
+        rule {
+          source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+          target_label  = "project"
+        }
+      }
+
+      // Collect logs from discovered containers
+      loki.source.docker "containers" {
+        host       = "unix:///var/run/docker.sock"
+        targets    = discovery.relabel.containers.output
+        forward_to = [loki.process.containers.receiver]
+      }
+
+      // Process and parse JSON logs (from LoggerJSON)
+      loki.process "containers" {
+        forward_to = [loki.write.loki.receiver]
+
+        stage.json {
+          expressions = {
+            level   = "severity",
+            message = "message",
+          }
+        }
+
+        stage.labels {
+          values = {
+            level = "",
+          }
+        }
+      }
+
+      // Write to Loki
+      loki.write "loki" {
+        endpoint {
+          url = "http://loki:3100/loki/api/v1/push"
+        }
+      }
+
 services:
   grafana:
     image: grafana/grafana:latest
@@ -5,7 +251,9 @@ services:
       - "3000:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+    configs:
+      - source: grafana_datasources
+        target: /etc/grafana/provisioning/datasources/datasources.yaml
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -19,7 +267,9 @@ services:
       - "9090:9090"
     volumes:
       - prometheus-data:/prometheus
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--web.enable-remote-write-receiver"
@@ -34,7 +284,9 @@ services:
       - "3100:3100"
     volumes:
       - loki-data:/loki
-      - ./loki/loki.yaml:/etc/loki/local-config.yaml:ro
+    configs:
+      - source: loki_config
+        target: /etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped
     networks:
@@ -47,7 +299,9 @@ services:
       - "4318:4318"
     volumes:
       - tempo-data:/var/tempo
-      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+    configs:
+      - source: tempo_config
+        target: /etc/tempo.yaml
     command: ["-config.file=/etc/tempo.yaml"]
     restart: unless-stopped
     networks:
@@ -60,7 +314,9 @@ services:
       - "9095:9095"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    configs:
+      - source: alloy_config
+        target: /etc/alloy/config.alloy
     command: run /etc/alloy/config.alloy
     restart: unless-stopped
     depends_on:
