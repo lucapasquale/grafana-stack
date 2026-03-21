@@ -130,15 +130,9 @@ configs:
               send_exemplars: true
 
       overrides:
-        defaults:
-          global:
-            max_bytes_per_trace: 0
-          storage:
-            trace_retention: 360h
-          metrics_generator:
-            processors:
-              - service-graphs
-              - span-metrics
+        metrics_generator_processors:
+          - service-graphs
+          - span-metrics
 
   alloy_config:
     content: |
