@@ -139,6 +139,7 @@ configs:
             processors:
               - service-graphs
               - span-metrics
+              - local-blocks
 
   alloy_config:
     content: |
