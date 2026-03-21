@@ -106,6 +106,8 @@ configs:
                 endpoint: "0.0.0.0:4317"
               http:
                 endpoint: "0.0.0.0:4318"
+        queue:
+          type: memory
 
       storage:
         trace:
