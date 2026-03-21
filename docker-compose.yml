@@ -240,6 +240,29 @@ configs:
         }
       }
 
+      // ============================================================
+      // Scrape botchini /metrics through Cloudflare tunnel
+      // ============================================================
+      prometheus.scrape "botchini" {
+        targets = [{"__address__" = "botchini-metrics.luca.codes", "__metrics_path__" = "/metrics"}]
+        forward_to = [prometheus.remote_write.default.receiver]
+        scrape_interval = "15s"
+        scheme = "https"
+
+        http_client_config {
+          headers = {
+            "CF-Access-Client-Id"     = env("CF_ACCESS_CLIENT_ID"),
+            "CF-Access-Client-Secret" = env("CF_ACCESS_CLIENT_SECRET"),
+          }
+        }
+      }
+
+      prometheus.remote_write "default" {
+        endpoint {
+          url = "http://prometheus:9090/api/v1/write"
+        }
+      }
+
 services:
   grafana:
     image: grafana/grafana:latest
@@ -313,6 +336,9 @@ services:
     configs:
       - source: alloy_config
         target: /etc/alloy/config.alloy
+    environment:
+      - CF_ACCESS_CLIENT_ID=${CF_ACCESS_CLIENT_ID}
+      - CF_ACCESS_CLIENT_SECRET=${CF_ACCESS_CLIENT_SECRET}
     command: run /etc/alloy/config.alloy
     restart: unless-stopped
     depends_on:
