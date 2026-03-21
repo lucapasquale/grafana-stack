@@ -30,7 +30,7 @@ Self-hosted observability stack for Portainer deployment on Proxmox. Receives **
 | Service        | Port  | Purpose                                         |
 | -------------- | ----- | ------------------------------------------------ |
 | **Grafana**    | 3000  | Dashboards & visualization                       |
-| **Prometheus** | 9090  | Metrics storage, scrapes botchini on remote VM   |
+| **Prometheus** | 9090  | Metrics storage & remote write receiver          |
 | **Loki**       | 3100  | Log aggregation                                  |
 | **Tempo**      | 4317  | Distributed traces (OTLP gRPC)                   |
 | **Tempo**      | 4318  | Distributed traces (OTLP HTTP)                   |
@@ -43,8 +43,7 @@ Self-hosted observability stack for Portainer deployment on Proxmox. Receives **
 2. Select **Repository**, enter the Git repo URL, and set the branch
 3. Set environment variables (see `.env.example`):
    - `GRAFANA_ADMIN_PASSWORD` — Grafana admin password
-4. Edit `prometheus/prometheus.yml` — replace `BOTCHINI_HOST` with the target VM's internal IP
-5. Deploy the stack
+4. Deploy the stack
 
 > **Important:** Use the **Repository** method, not "Upload" or "Web editor". The stack references config files via relative paths, so the entire repo must be cloned for them to be found.
 
@@ -112,19 +111,4 @@ PROMETHEUS_REMOTE_WRITE_URL=https://prometheus.yourdomain.com/api/v1/write
 ```
 
 The `OTEL_EXPORTER_OTLP_HEADERS` env var is part of the OpenTelemetry spec — most OTLP SDKs and collectors support it natively. For log and metric push clients, add the two headers to your HTTP requests manually.
-
-## Connecting botchini (on Coolify VM)
-
-For botchini specifically, set these in Coolify:
-
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.yourdomain.com
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-```
-
-Prometheus can still scrape botchini over the LAN — edit `prometheus/prometheus.yml` and replace `BOTCHINI_HOST` with the Coolify VM's internal IP.
-
-For logs, either:
-- **Run Alloy on the Coolify VM** that pushes to `https://logs.yourdomain.com/loki/api/v1/push`
-- **Push directly from the app** to the same Loki push URL
 

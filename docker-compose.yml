@@ -51,12 +51,6 @@ configs:
           static_configs:
             - targets: ["localhost:9090"]
 
-        - job_name: "botchini"
-          static_configs:
-            - targets: ["BOTCHINI_HOST:4021"]
-              labels:
-                app: "botchini"
-
   loki_config:
     content: |
       auth_enabled: false
@@ -120,6 +114,7 @@ configs:
             path: /var/tempo/blocks
           wal:
             path: /var/tempo/wal
+          block_retention: 360h
 
       metrics_generator:
         processor:
@@ -134,10 +129,6 @@ configs:
           remote_write:
             - url: http://prometheus:9090/api/v1/write
               send_exemplars: true
-
-      compactor:
-        compaction:
-          block_retention: 360h
 
       overrides:
         defaults:
