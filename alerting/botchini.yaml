@@ -1,0 +1,161 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Discord
+    receivers:
+      - uid: discord-alerts
+        type: discord
+        settings:
+          url: ${DISCORD_ALERT_WEBHOOK_URL}
+          use_discord_username: false
+
+# Each rule sends its notifications straight to the Discord contact point, so
+# provisioning doesn't replace the root notification policy set up in Grafana
+groups:
+  - orgId: 1
+    name: botchini
+    folder: Botchini
+    interval: 1m
+    rules:
+      - uid: botchini-failed-commands
+        title: Botchini commands failing
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          service: botchini
+        notification_settings:
+          receiver: Discord
+          group_by: ["alertname"]
+          repeat_interval: 4h
+        annotations:
+          summary: '{{ printf "%.0f" .Values.B.Value }} Discord interactions failed in the last 15 minutes'
+          description: "Commands are raising or Discord is rejecting their responses. Check the Botchini - Overview dashboard logs for the stacktraces."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(increase(botchini_discord_interaction_count{status="error"}[15m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+
+      - uid: botchini-playback-failures
+        title: Botchini music playback failing
+        condition: C
+        for: 0s
+        noDataState: OK
+        execErrState: Error
+        labels:
+          service: botchini
+        notification_settings:
+          receiver: Discord
+          group_by: ["alertname"]
+          repeat_interval: 4h
+        annotations:
+          summary: '{{ printf "%.0f" .Values.B.Value }} tracks couldn''t be played in the last 30 minutes'
+          description: "Check the failure reasons on the Botchini - Overview dashboard. bot_check, forbidden and rate_limited usually mean YouTube is blocking the server."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1800, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(increase(botchini_music_track_failure_count{reason!~"age_restricted|unavailable|unsupported_url|stream_offline"}[30m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+
+      - uid: botchini-api-errors
+        title: Botchini external API errors
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          service: botchini
+        notification_settings:
+          receiver: Discord
+          group_by: ["alertname"]
+          repeat_interval: 4h
+        annotations:
+          summary: "{{ .Labels.service }} API requests are failing ({{ humanizePercentage .Values.B.Value }} errors)"
+          description: "More than 20% of requests to this API returned an error or failed to connect over the last 10 minutes."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: >-
+                sum by (service) (rate(botchini_http_request_count{result="error"}[10m]))
+                / sum by (service) (rate(botchini_http_request_count[10m]))
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+
+      - uid: botchini-down
+        title: Botchini is down
+        condition: C
+        for: 3m
+        noDataState: Alerting
+        execErrState: Error
+        labels:
+          service: botchini
+        notification_settings:
+          receiver: Discord
+          group_by: ["alertname"]
+          repeat_interval: 4h
+        annotations:
+          summary: Botchini metrics can't be scraped
+          description: "Alloy can't reach https://botchini-metrics.luca.codes/metrics, so the app is down or the tunnel/metrics port is misconfigured."
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: max(up{job="botchini"})
+              instant: true
+          - refId: B
+            datasourceUid: __expr__
+            model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: lt, params: [1] }

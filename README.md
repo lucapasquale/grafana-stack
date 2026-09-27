@@ -47,6 +47,50 @@ Self-hosted observability stack for Portainer deployment on Proxmox. Receives **
 
 > **Important:** Use the **Repository** method, not "Upload" or "Web editor". The stack references config files via relative paths, so the entire repo must be cloned for them to be found.
 
+## Dashboards and Alerts
+
+Grafana is provisioned with dashboards and alert rules from this repo:
+
+| Path                   | What it is                                                                   |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `dashboards/<folder>/` | Dashboard JSON files, provisioned into a Grafana folder of the same name     |
+| `alerting/`            | Alert rules, contact points and notification policies                        |
+
+Portainer doesn't mount files from the repository, so these files are embedded
+inline into `docker-compose.yml`. **After changing any of them, run:**
+
+```bash
+python3 scripts/embed_configs.py
+```
+
+and commit both the file and the updated `docker-compose.yml`. The script
+escapes `$` for docker compose and adds each dashboard's folder name as a tag.
+
+To edit a dashboard, change it in Grafana (provisioned dashboards allow UI
+edits, but they are reset on restart), export it as JSON into `dashboards/`
+and run the script.
+
+### Botchini
+
+- **Botchini - Overview**: Discord commands (volume, failures, p95 response
+  time), music playback (tracks started, failures by reason), Twitch/YouTube
+  API health, and recent error logs from Loki
+- **Botchini - PromEx \***: BEAM, application, Ecto and Phoenix dashboards
+  exported from Botchini with `mix prom_ex.dashboard.export`
+
+Alerts are sent to the Discord webhook in `DISCORD_ALERT_WEBHOOK_URL`:
+
+| Alert                           | Fires when                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| Botchini commands failing       | More than 2 interactions failed in the last 15 minutes                     |
+| Botchini music playback failing | More than 2 tracks failed in 30 minutes, ignoring user errors (age restricted, unavailable, unsupported links, offline streams) |
+| Botchini external API errors    | More than 20% of a service's API requests failed over 10 minutes, for 5 minutes |
+| Botchini is down                | Alloy can't scrape Botchini's metrics for 3 minutes                        |
+
+> **Note:** Grafana refuses to start when the Discord contact point has no URL,
+> so `DISCORD_ALERT_WEBHOOK_URL` falls back to a placeholder when unset. Alerts
+> just fail to deliver until the real webhook is configured.
+
 ## Cloudflare Tunnel Setup
 
 cloudflared runs on the host and routes traffic to the stack's published ports on `localhost`.
