@@ -260,11 +260,9 @@ configs:
         scrape_interval = "15s"
         scheme = "https"
 
-        http_client_config {
-          headers = {
-            "CF-Access-Client-Id"     = env("CF_ACCESS_CLIENT_ID"),
-            "CF-Access-Client-Secret" = env("CF_ACCESS_CLIENT_SECRET"),
-          }
+        http_headers = {
+          "CF-Access-Client-Id"     = [sys.env("CF_ACCESS_CLIENT_ID")],
+          "CF-Access-Client-Secret" = [sys.env("CF_ACCESS_CLIENT_SECRET")],
         }
       }
 
