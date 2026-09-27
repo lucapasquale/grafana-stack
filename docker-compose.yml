@@ -566,7 +566,9 @@ services:
     environment:
       - CF_ACCESS_CLIENT_ID=${CF_ACCESS_CLIENT_ID}
       - CF_ACCESS_CLIENT_SECRET=${CF_ACCESS_CLIENT_SECRET}
-    command: run /etc/alloy/config.alloy
+    # Alloy's UI listens on 127.0.0.1 by default, which isn't reachable through
+    # the published port, so bind it to all interfaces inside the container
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
     restart: unless-stopped
     depends_on:
       - loki
