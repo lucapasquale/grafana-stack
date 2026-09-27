@@ -3,6 +3,14 @@ configs:
     content: |
       apiVersion: 1
 
+      # Grafana can't change the uid of an existing datasource, so these are
+      # deleted and recreated on startup to get the uids dashboards and alerts use
+      deleteDatasources:
+        - name: Prometheus
+          orgId: 1
+        - name: Loki
+          orgId: 1
+
       datasources:
         - name: Prometheus
           type: prometheus
