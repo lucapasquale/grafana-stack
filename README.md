@@ -73,8 +73,10 @@ and run the script.
 ### Botchini
 
 - **Botchini - Overview**: Discord commands (volume, failures, p95 response
-  time), music playback (tracks started, failures by reason), Twitch/YouTube
-  API health, and recent error logs from Loki
+  time), music playback (tracks started, failures by reason), screen sharing
+  (streams started, viewers joining and a stream event log, with stream starts
+  marked on every graph), Twitch/YouTube API health, and recent error logs
+  from Loki
 - **Botchini - PromEx \***: BEAM, application, Ecto and Phoenix dashboards
   exported from Botchini with `mix prom_ex.dashboard.export`
 
