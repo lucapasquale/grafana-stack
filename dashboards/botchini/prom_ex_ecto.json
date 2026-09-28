@@ -89,7 +89,10 @@
       "type": "row"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The time the connection spent waiting before being checked out for the query.",
       "fieldConfig": {
         "defaults": {
@@ -145,7 +148,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The time spent waiting to check out a database connection.",
       "fieldConfig": {
         "defaults": {
@@ -201,7 +207,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The time spent decoding the data received from the database.",
       "fieldConfig": {
         "defaults": {
@@ -257,7 +266,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The time spent executing the query. This value is the average time across all query types (SELECT, DELETE, etc).",
       "fieldConfig": {
         "defaults": {
@@ -313,7 +325,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The name of the Ecto Repo module",
       "fieldConfig": {
         "defaults": {
@@ -375,7 +390,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The host of the database that the Repo is connected to.",
       "fieldConfig": {
         "defaults": {
@@ -437,7 +455,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The name of the database that the Repo is connected to.",
       "fieldConfig": {
         "defaults": {
@@ -499,7 +520,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The pool size that the repo was initialized with.",
       "fieldConfig": {
         "defaults": {
@@ -561,7 +585,10 @@
       "type": "stat"
     },
     {
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The timeout duration that the Repo was initialized with.",
       "fieldConfig": {
         "defaults": {
@@ -641,7 +668,10 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The average total time to execute and decode a database query.",
       "fill": 1,
       "fillGradient": 0,
@@ -740,7 +770,10 @@
         "mode": "spectrum"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "A heatmap showing the total time spread across all Repo query executions (regardless of query type).",
       "fieldConfig": {
         "defaults": {
@@ -804,7 +837,10 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The average query execution time per Ecto command.",
       "fill": 1,
       "fillGradient": 0,
@@ -903,7 +939,10 @@
         "mode": "spectrum"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "A heatmap showing the request time spread across all Repo query executions (regardless of query type).",
       "fieldConfig": {
         "defaults": {
@@ -967,7 +1006,10 @@
       "bars": false,
       "dashLength": 10,
       "dashes": false,
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "The number of operations taking place on each data source.",
       "fieldConfig": {
         "defaults": {
@@ -1073,7 +1115,10 @@
         "mode": "spectrum"
       },
       "dataFormat": "tsbuckets",
-      "datasource": "prometheus",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
       "description": "A heatmap showing the number of results returned from the database (summed up across all operations and sources).",
       "fieldConfig": {
         "defaults": {
@@ -1136,12 +1181,19 @@
   "refresh": "5s",
   "schemaVersion": 26,
   "style": "dark",
-  "tags": ["PromEx", "Ecto", "botchini"],
+  "tags": [
+    "PromEx",
+    "Ecto",
+    "botchini"
+  ],
   "templating": {
     "list": [
       {
         "allValue": null,
-        "datasource": "prometheus",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "definition": "label_values(botchini_prom_ex_prom_ex_status_info, job)",
         "hide": 0,
         "includeAll": false,
@@ -1162,7 +1214,10 @@
       },
       {
         "allValue": null,
-        "datasource": "prometheus",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "definition": "label_values(botchini_prom_ex_prom_ex_status_info, instance)",
         "hide": 0,
         "includeAll": false,
@@ -1183,7 +1238,10 @@
       },
       {
         "allValue": null,
-        "datasource": "prometheus",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
         "definition": "label_values(botchini_prom_ex_ecto_repo_init_status_info, repo)",
         "hide": 0,
         "includeAll": false,
@@ -1277,4 +1335,3 @@
   "uid": "F1A0BD0CB0A0ACAC34B806839880DAD7",
   "version": 1
 }
-
