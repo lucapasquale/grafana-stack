@@ -6,7 +6,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": {
     "from": "now-24h",
@@ -404,170 +404,6 @@
         "showCommonLabels": false,
         "showLabels": false
       }
-    },
-    {
-      "type": "row",
-      "id": 15,
-      "title": "External APIs",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 21
-      },
-      "panels": []
-    },
-    {
-      "type": "timeseries",
-      "id": 16,
-      "title": "Requests per minute",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 22
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "sum by (service, status) (rate(botchini_http_request_count{job=\"$job\"}[$__rate_interval])) * 60",
-          "legendFormat": "{{service}} {{status}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "type": "timeseries",
-      "id": 17,
-      "title": "Error rate",
-      "description": "Share of requests with a 4xx/5xx status or a connection failure",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 22
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "sum by (service) (rate(botchini_http_request_count{job=\"$job\", result=\"error\"}[$__rate_interval])) / sum by (service) (rate(botchini_http_request_count{job=\"$job\"}[$__rate_interval]))",
-          "legendFormat": "{{service}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "type": "timeseries",
-      "id": 18,
-      "title": "p95 latency",
-      "description": "",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 22
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "histogram_quantile(0.95, sum by (le, service) (rate(botchini_http_request_duration_milliseconds_bucket{job=\"$job\"}[$__rate_interval])))",
-          "legendFormat": "{{service}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "options": {}
-    },
-    {
-      "type": "row",
-      "id": 19,
-      "title": "Logs",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 30
-      },
-      "panels": []
-    },
-    {
-      "type": "logs",
-      "id": 20,
-      "title": "Errors and warnings",
-      "description": "Click a log line with a trace_id to open its trace in Tempo",
-      "datasource": {
-        "type": "loki",
-        "uid": "P8E80F9AEF21F6940"
-      },
-      "gridPos": {
-        "h": 12,
-        "w": 24,
-        "x": 0,
-        "y": 31
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
-          },
-          "refId": "A",
-          "expr": "{service=\"botchini\", level=~\"error|warning\"}"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": true,
-        "sortOrder": "Descending"
-      }
     }
   ],
   "annotations": {
@@ -583,18 +419,6 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
-      },
-      {
-        "name": "Streams started",
-        "enable": true,
-        "iconColor": "red",
-        "datasource": {
-          "type": "loki",
-          "uid": "P8E80F9AEF21F6940"
-        },
-        "expr": "{service=\"botchini\"} | json | metadata_event=\"screen_share_live\"",
-        "titleFormat": "Stream started",
-        "textFormat": "{{metadata_screen_owner_name}} started streaming \"{{metadata_screen_title}}\""
       }
     ]
   }
