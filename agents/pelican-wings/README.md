@@ -75,6 +75,7 @@ Current mappings:
 | `8deac147-eb74-4aa7-8288-7b4ddfe1abb6` | `palworld` |
 | `21e58aa7-dcf1-4fb7-be96-613355a6ca49` | `valheim` |
 | `da2a1da9-2cb3-4bf7-ae8f-0a86bd62d22d` | `project_zomboid` |
+| `398cbf9d-578e-4bac-9219-708f6cd9efa6` | `enshrouded` |
 
 Game-version parsing is per game (`stage.match` blocks in
 `loki.process.game_server_logs`): each one matches that game's own startup

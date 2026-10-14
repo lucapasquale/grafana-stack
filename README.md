@@ -94,6 +94,15 @@ Alerts are sent to the Discord webhook in `DISCORD_ALERT_WEBHOOK_URL`:
 > so `DISCORD_ALERT_WEBHOOK_URL` falls back to a placeholder when unset. Alerts
 > just fail to deliver until the real webhook is configured.
 
+### Pelican game servers
+
+- **Game Server** (`dashboards/pelican/`) — per-server view, selected with the
+  `server` variable (`game` label): running state, uptime, current game version,
+  time since the last backup, CPU/RAM/network from cAdvisor, log rate by level
+  and a live log stream. The data comes from the Alloy agent on the Pelican host;
+  see [`agents/pelican-wings/`](agents/pelican-wings/README.md) for the UUID map
+  that every `game` label depends on.
+
 ## Agents on other hosts
 
 Machines that push telemetry into this stack keep their Alloy config here, but

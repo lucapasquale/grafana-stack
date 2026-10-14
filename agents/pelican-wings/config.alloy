@@ -87,6 +87,12 @@ discovery.relabel "pelican_only" {
     target_label  = "game"
     replacement   = "project_zomboid"
   }
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    target_label  = "game"
+    replacement   = "enshrouded"
+  }
 }
 
 // ─── Game-server container logs (stdout/stderr) ─────────────────────────
@@ -340,6 +346,37 @@ loki.process "game_server_logs" {
     }
   }
 
+  // ─── Game version: Enshrouded ─────────────────────────────────────────
+  // Matches lines like: "Game Version (SVN): 1024233". The SVN build number
+  // is the server's own version report (the binary also prints a 40-char git
+  // hash on the line above it, which is unusable in a panel).
+  stage.match {
+    selector = "{game=\"enshrouded\"} |~ \"Game Version\""
+
+    stage.regex {
+      expression = `Game Version \(SVN\): (?P<gameversion>\S+)`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
 
   forward_to = [loki.write.grafana_stack.receiver]
 }
@@ -482,6 +519,12 @@ prometheus.relabel "add_game_label" {
     target_label  = "game"
     replacement   = "project_zomboid"
   }
+  rule {
+    source_labels = ["name"]
+    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    target_label  = "game"
+    replacement   = "enshrouded"
+  }
 
   // ─── UUID → game (backup metrics — UUID lives in `server_uuid`) ─────
   rule {
@@ -513,6 +556,12 @@ prometheus.relabel "add_game_label" {
     regex         = "da2a1da9-2cb3-4bf7-ae8f-0a86bd62d22d"
     target_label  = "game"
     replacement   = "project_zomboid"
+  }
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    target_label  = "game"
+    replacement   = "enshrouded"
   }
 
   // ─── Static labels to mirror Loki side ──────────────────────────────
