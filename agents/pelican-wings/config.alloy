@@ -1,0 +1,566 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// SOURCES — LOGS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Discover Docker containers ──────────────────────────────────────────
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "10s"
+}
+
+// ─── Keep only Pelican-managed containers and attach useful labels ──────
+// Two parallel sets of UUID → game mappings exist in this file:
+//   1. Here (keyed on `pelican_uuid`)         — for log streams
+//   2. prometheus.relabel.add_game_label below — for metrics (TWO sub-mappings)
+// Adding a new server means updating ALL three lists. Search for the UUID
+// you're replacing as a starting point.
+discovery.relabel "pelican_only" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_label_Service"]
+    regex         = "Pelican"
+    action        = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_ContainerType"]
+    regex         = "server_process"
+    action        = "keep"
+  }
+
+  // Container name = Pelican server UUID (with leading slash)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "pelican_uuid"
+    replacement   = "$1"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+
+  rule {
+    target_label = "service"
+    replacement  = "pelican"
+  }
+  rule {
+    target_label = "host"
+    replacement  = sys.env("HOSTNAME")
+  }
+
+  // ─── UUID → game name (LOGS) ─────────────────────────────────────────
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "9d771143-8389-4699-a596-9bb11b2819aa"
+    target_label  = "game"
+    replacement   = "minecraft_fabric"
+  }
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "1f1e04be-f4a7-4b4d-8e0e-e24b3ca7982b"
+    target_label  = "game"
+    replacement   = "romestead"
+  }
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "8deac147-eb74-4aa7-8288-7b4ddfe1abb6"
+    target_label  = "game"
+    replacement   = "palworld"
+  }
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "21e58aa7-dcf1-4fb7-be96-613355a6ca49"
+    target_label  = "game"
+    replacement   = "valheim"
+  }
+  rule {
+    source_labels = ["pelican_uuid"]
+    regex         = "da2a1da9-2cb3-4bf7-ae8f-0a86bd62d22d"
+    target_label  = "game"
+    replacement   = "project_zomboid"
+  }
+}
+
+// ─── Game-server container logs (stdout/stderr) ─────────────────────────
+loki.source.docker "pelican" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.pelican_only.output
+  forward_to = [loki.process.game_server_logs.receiver]
+}
+
+// ─── Extract level/category labels from game-server log lines ───────────
+// REMOVE THIS BLOCK if you didn't apply the log-level extraction step
+// from earlier in the conversation. If you remove it, change the
+// loki.source.docker.pelican `forward_to` above to point directly at
+// loki.write.grafana_stack.receiver.
+loki.process "game_server_logs" {
+  // Match bracketed category prefix: [CHAT], [INFO], [ERROR], etc.
+  stage.regex {
+    expression = `^\[(?P<category>[A-Z]+)\]`
+  }
+
+  // Map category → log level
+  stage.template {
+    source   = "level"
+    template = "{{ if eq .category \"ERROR\" }}error{{ else if eq .category \"WARN\" }}warn{{ else if eq .category \"WARNING\" }}warn{{ else if eq .category \"DEBUG\" }}debug{{ else if eq .category \"TRACE\" }}trace{{ else if .category }}info{{ end }}"
+  }
+
+  // Fallback for unbracketed lines: sniff for error keywords
+  stage.match {
+    selector = "{level=\"\"}"
+    stage.regex {
+      expression = `(?i)(?P<inferred>exception|error|fatal|crash)`
+    }
+    stage.template {
+      source   = "level"
+      template = "{{ if .inferred }}error{{ end }}"
+    }
+  }
+  stage.match {
+    selector = "{level=\"\"}"
+    stage.regex {
+      expression = `(?i)(?P<inferred>warning|warn)`
+    }
+    stage.template {
+      source   = "level"
+      template = "{{ if .inferred }}warn{{ end }}"
+    }
+  }
+
+  // Default to info for anything still unclassified
+  stage.template {
+    source   = "level"
+    template = "{{ if not .level }}info{{ else }}{{ .level }}{{ end }}"
+  }
+
+  // Promote extracted fields to indexed labels
+  stage.labels {
+    values = {
+      level    = "",
+      category = "",
+    }
+  }
+
+  // ─── Game version: Romestead ──────────────────────────────────────────
+  stage.match {
+    selector = "{game=\"romestead\"} |~ \"Running Romestead version\""
+
+    stage.regex {
+      expression = `Running Romestead version (?P<gameversion>\S+)`
+    }
+
+    // Constant "1" — the metric value is meaningless; the version lives
+    // in the label.
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        // The version line is logged once per server start. Keep the
+        // gauge alive long enough that the dashboard panel works even
+        // when the server hasn't restarted recently. 168h = 1 week.
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  // ─── Game version: Minecraft (vanilla + Fabric + Paper all log the same line)
+  stage.match {
+    selector = "{game=\"minecraft_fabric\"} |~ \"Starting minecraft server version\""
+
+    stage.regex {
+      expression = `Starting minecraft server version (?P<gameversion>\S+)`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        // The version line is logged once per server start. Keep the
+        // gauge alive long enough that the dashboard panel works even
+        // when the server hasn't restarted recently. 168h = 1 week.
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  // ─── Game version: Valheim ────────────────────────────────────────────
+  // Matches lines like: "Valheim version: l-0.221.12 (network version 36)"
+  stage.match {
+    selector = "{game=\"valheim\"} |~ \"Valheim version:\""
+
+    stage.regex {
+      expression = `Valheim version: (?P<gameversion>\S+)`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  // ─── Game version: Project Zomboid ────────────────────────────────────
+  // Matches lines like: "version=42.11.1, demo=false"
+  // Uses [^,] rather than \S+ because the version is followed by a comma
+  // with no space before it, so we need to stop at the comma explicitly.
+  stage.match {
+    selector = "{game=\"project_zomboid\"} |~ \"version=\""
+
+    stage.regex {
+      expression = `version=(?P<gameversion>[^,]+),`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  // ─── Project Zomboid: player join events ──────────────────────────────
+  // Matches: "Steam client 76561198017580702 is initiating a connection."
+  // Note: this fires on connection *attempt*, before auth. A failed
+  // connection (wrong password, ban) would still count. For a homelab
+  // with friends, this over-count is negligible.
+  //
+  // TODO: pair with a "leave" counter once we have a disconnect log line
+  // to match. Only then can we build a "Players Online" panel via
+  //   sum(pelican_player_joins_total{game="..."}) - sum(pelican_player_leaves_total{game="..."})
+  stage.match {
+    selector = "{game=\"project_zomboid\"} |~ \"is initiating a connection\""
+
+    stage.regex {
+      expression = `Steam client (?P<steam_id>\d+) is initiating a connection`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { steam_id = "" }
+    }
+
+    stage.metrics {
+      metric.counter {
+        name              = "pelican_player_joins_total"
+        description       = "Total player join events, per server per Steam ID."
+        source            = "one"
+        action            = "inc"
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  // ─── Game version: Palworld ───────────────────────────────────────────
+  // Palworld logs "Game version is v1.0.0.100427" at startup. We strip
+  // the leading "v" so the version displays consistently with Romestead's
+  // formatting ("1.0.0.100427" instead of "v1.0.0.100427").
+  stage.match {
+    selector = "{game=\"palworld\"} |~ \"Game version is\""
+
+    stage.regex {
+      expression = `Game version is v(?P<gameversion>\S+)`
+    }
+
+    stage.template {
+      source   = "one"
+      template = "1"
+    }
+
+    stage.labels {
+      values = { gameversion = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_game_version_info"
+        description       = "Currently-running game version. Value is always 1; the version string is in the `gameversion` label."
+        source            = "one"
+        action            = "set"
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+
+  forward_to = [loki.write.grafana_stack.receiver]
+}
+
+// ─── Pelican daemon log files ───────────────────────────────────────────
+local.file_match "pelican_daemon" {
+  path_targets = [
+    {"__path__" = "/var/log/pelican/*.log", job = "pelican_daemon"},
+  ]
+}
+
+loki.source.file "pelican_daemon" {
+  targets    = local.file_match.pelican_daemon.targets
+  forward_to = [loki.process.pelican_daemon.receiver]
+}
+
+// ─── Parse daemon log + emit backup-completion metric ───────────────────
+// Two responsibilities:
+//   1. Parse the bracketed timestamp on every line so Loki uses the log's
+//      own timestamp instead of ingestion time. Without this, the first
+//      scrape of an existing log file stamps weeks of history as "now".
+//   2. When a backup completes, emit a Prometheus gauge with the current
+//      unix timestamp. PromQL's `time() - <gauge>` gives "seconds since
+//      last backup", which renders cleanly in a Stat panel.
+loki.process "pelican_daemon" {
+  // Pull "May 28 16:00:23.356" out of "[May 28 16:00:23.356]"
+  stage.regex {
+    expression = `\[(?P<ts>[A-Z][a-z]{2} +\d+ \d{2}:\d{2}:\d{2}\.\d+)\]`
+  }
+  stage.timestamp {
+    source   = "ts"
+    format   = "Jan _2 15:04:05.000"
+    location = "America/Sao_Paulo"
+  }
+
+  // Backup-completion gauge: fires on every successful backup log line.
+  stage.match {
+    selector = "{job=\"pelican_daemon\"} |~ \"created backup successfully\""
+
+    // Pull "server=<uuid>" out of the line
+    stage.regex {
+      expression = `.*server=(?P<server_uuid>[a-f0-9-]+).*`
+    }
+
+    // Current unix timestamp as a string (different field name from `ts`
+    // above to avoid stomping on the timestamp-parsing stage)
+    stage.template {
+      source   = "ts_metric"
+      template = "{{ unixEpoch now }}"
+    }
+
+    // Promote server_uuid to a metric label
+    stage.labels {
+      values = { server_uuid = "" }
+    }
+
+    stage.metrics {
+      metric.gauge {
+        name              = "pelican_last_backup_timestamp_seconds"
+        description       = "Unix timestamp of the most recent successful backup, per server."
+        source            = "ts_metric"
+        action            = "set"
+        // Keep the gauge alive long after the last backup event. Default
+        // is 5m, which causes the metric to vanish from /metrics between
+        // backups — and "No data" gaps on the dashboard. 168h = 1 week.
+        max_idle_duration = "168h"
+      }
+    }
+  }
+
+  forward_to = [loki.write.grafana_stack.receiver]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SOURCES — METRICS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Container CPU / RAM / disk / network via embedded cAdvisor ─────────
+prometheus.exporter.cadvisor "containers" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+  enabled_metrics  = ["cpu", "memory", "network", "disk"]
+}
+
+prometheus.scrape "container_metrics" {
+  targets         = prometheus.exporter.cadvisor.containers.targets
+  forward_to      = [prometheus.relabel.add_game_label.receiver]
+  scrape_interval = "15s"
+  job_name        = "cadvisor"
+}
+
+// ─── Scrape Alloy's own /metrics for stage.metrics-derived gauges ───────
+// stage.metrics inside loki.process registers metrics on Alloy's HTTP
+// server, not Prometheus directly. We scrape ourselves to pick them up
+// and route them through the same relabel chain.
+prometheus.scrape "alloy_self" {
+  targets         = [{"__address__" = "127.0.0.1:12345"}]
+  metrics_path    = "/metrics"
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.add_game_label.receiver]
+  job_name        = "alloy"
+}
+
+// ─── Stamp metrics with the same `game` label we use on logs ────────────
+// Two parallel UUID rule sets:
+//   * keyed on `name`        — cAdvisor container metrics
+//   * keyed on `server_uuid` — backup-event gauges from loki.process
+// Both must stay in sync with discovery.relabel.pelican_only above.
+prometheus.relabel "add_game_label" {
+  forward_to = [prometheus.remote_write.grafana_stack.receiver]
+
+  // ─── UUID → game (cAdvisor metrics — UUID lives in `name`) ──────────
+  rule {
+    source_labels = ["name"]
+    regex         = "9d771143-8389-4699-a596-9bb11b2819aa"
+    target_label  = "game"
+    replacement   = "minecraft_fabric"
+  }
+  rule {
+    source_labels = ["name"]
+    regex         = "1f1e04be-f4a7-4b4d-8e0e-e24b3ca7982b"
+    target_label  = "game"
+    replacement   = "romestead"
+  }
+  rule {
+    source_labels = ["name"]
+    regex         = "8deac147-eb74-4aa7-8288-7b4ddfe1abb6"
+    target_label  = "game"
+    replacement   = "palworld"
+  }
+  rule {
+    source_labels = ["name"]
+    regex         = "21e58aa7-dcf1-4fb7-be96-613355a6ca49"
+    target_label  = "game"
+    replacement   = "valheim"
+  }
+  rule {
+    source_labels = ["name"]
+    regex         = "da2a1da9-2cb3-4bf7-ae8f-0a86bd62d22d"
+    target_label  = "game"
+    replacement   = "project_zomboid"
+  }
+
+  // ─── UUID → game (backup metrics — UUID lives in `server_uuid`) ─────
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "9d771143-8389-4699-a596-9bb11b2819aa"
+    target_label  = "game"
+    replacement   = "minecraft_fabric"
+  }
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "1f1e04be-f4a7-4b4d-8e0e-e24b3ca7982b"
+    target_label  = "game"
+    replacement   = "romestead"
+  }
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "8deac147-eb74-4aa7-8288-7b4ddfe1abb6"
+    target_label  = "game"
+    replacement   = "palworld"
+  }
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "21e58aa7-dcf1-4fb7-be96-613355a6ca49"
+    target_label  = "game"
+    replacement   = "valheim"
+  }
+  rule {
+    source_labels = ["server_uuid"]
+    regex         = "da2a1da9-2cb3-4bf7-ae8f-0a86bd62d22d"
+    target_label  = "game"
+    replacement   = "project_zomboid"
+  }
+
+  // ─── Static labels to mirror Loki side ──────────────────────────────
+  rule {
+    target_label = "service"
+    replacement  = "pelican"
+  }
+  rule {
+    target_label = "host"
+    replacement  = sys.env("HOSTNAME")
+  }
+
+  // ─── Drop noise labels ──────────────────────────────────────────────
+  // cAdvisor copies every Docker label onto every metric. None of the
+  // Pelican container labels vary per-server, so drop them all.
+  rule {
+    regex  = "container_label_.*"
+    action = "labeldrop"
+  }
+  // `instance` duplicates `host` after relabel
+  rule {
+    regex  = "instance"
+    action = "labeldrop"
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SINKS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Push logs to Loki via Cloudflare Tunnel ────────────────────────────
+loki.write "grafana_stack" {
+  endpoint {
+    url = "https://logs.luca.codes/loki/api/v1/push"
+    headers = {
+      "CF-Access-Client-Id"     = sys.env("CF_ACCESS_CLIENT_ID"),
+      "CF-Access-Client-Secret" = sys.env("CF_ACCESS_CLIENT_SECRET"),
+    }
+  }
+}
+
+// ─── Push metrics to Prometheus via Cloudflare Tunnel ───────────────────
+prometheus.remote_write "grafana_stack" {
+  endpoint {
+    url = "https://prometheus.luca.codes/api/v1/write"
+    headers = {
+      "CF-Access-Client-Id"     = sys.env("CF_ACCESS_CLIENT_ID"),
+      "CF-Access-Client-Secret" = sys.env("CF_ACCESS_CLIENT_SECRET"),
+    }
+  }
+}

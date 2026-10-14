@@ -55,6 +55,7 @@ Grafana is provisioned with dashboards and alert rules from this repo:
 | ---------------------- | ---------------------------------------------------------------------------- |
 | `dashboards/<folder>/` | Dashboard JSON files, provisioned into a Grafana folder of the same name     |
 | `alerting/`            | Alert rules, contact points and notification policies                        |
+| `agents/<host>/`       | Config for the Alloy agents that push data from other hosts into this stack   |
 
 Portainer doesn't mount files from the repository, so these files are embedded
 inline into `docker-compose.yml`. **After changing any of them, run:**
@@ -92,6 +93,21 @@ Alerts are sent to the Discord webhook in `DISCORD_ALERT_WEBHOOK_URL`:
 > **Note:** Grafana refuses to start when the Discord contact point has no URL,
 > so `DISCORD_ALERT_WEBHOOK_URL` falls back to a placeholder when unset. Alerts
 > just fail to deliver until the real webhook is configured.
+
+## Agents on other hosts
+
+Machines that push telemetry into this stack keep their Alloy config here, but
+the agents themselves run on those machines: they need the local Docker socket,
+the host cgroups/`proc` and that host's own logs, none of which exist on the
+stack's host.
+
+- `agents/pelican-wings/` — Pelican game-server logs, cAdvisor container
+  metrics, per-game versions and last-backup timestamps. Deploy steps and the
+  UUID → game mapping: [`agents/pelican-wings/README.md`](agents/pelican-wings/README.md).
+
+Those directories are not part of the stack's compose file: the embed generator
+ignores them, and Git Sync must keep its repository **Path** set to
+`dashboards` so they never turn into Grafana folders.
 
 ## Cloudflare Tunnel Setup
 
