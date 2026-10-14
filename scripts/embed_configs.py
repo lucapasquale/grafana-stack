@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 """
-Embeds the Grafana dashboards and alert rules into docker-compose.yml.
+Embeds the Grafana alert rules into docker-compose.yml.
 
 Portainer doesn't mount files from the stack's repository, so every config
-has to live inline in docker-compose.yml. Dashboards and alert rules are kept
-as regular files (dashboards/<folder>/*.json, alerting/*.yaml) and this script
-copies them into the generated section of the compose file.
+has to live inline in docker-compose.yml. Alert rules are kept as regular
+files (alerting/*.yaml) and this script copies them into the generated
+section of the compose file.
 
 Run it after changing any of those files:
 
     python3 scripts/embed_configs.py
+
+Dashboards are NOT embedded here anymore. They are provisioned by Grafana's
+Git Sync (Administration > General > Provisioning), straight from
+dashboards/<folder>/*.json in this repository, so they are not mounted into
+the container at all. Do not add them back: mounting them again would take
+the resource manager for those UIDs back from Git Sync, and the next sync
+would fail with "Cannot change resource manager kind".
+
+Alerting is still file-provisioned here because Git Sync only manages
+dashboards and folders. Alert rule changes still need a redeploy.
 """
 
-import json
 import re
 from pathlib import Path
 
@@ -31,18 +40,6 @@ def escape(text):
 
 def config_name(path):
     return re.sub(r"[^a-z0-9]+", "_", path.stem.lower())
-
-
-def dashboard_configs():
-    """Yields (config name, mount target, content) for every dashboard"""
-    for path in sorted(ROOT.glob("dashboards/*/*.json")):
-        folder = path.parent.name
-        dashboard = json.loads(path.read_text())
-        tags = dashboard.get("tags") or []
-        dashboard["tags"] = sorted(set(tags) | {folder})
-        content = json.dumps(dashboard, separators=(",", ":"))
-        target = f"/etc/grafana/dashboards/{folder}/{path.name}"
-        yield f"grafana_dashboard_{config_name(path)}", target, content
 
 
 def alerting_configs():
@@ -79,7 +76,7 @@ def replace_section(text, begin, end, rendered):
     return pattern.sub(lambda _match: rendered, text)
 
 
-configs = [*dashboard_configs(), *alerting_configs()]
+configs = [*alerting_configs()]
 compose = COMPOSE.read_text()
 compose = replace_section(compose, CONFIGS_BEGIN, CONFIGS_END, render_configs(configs))
 compose = replace_section(compose, MOUNTS_BEGIN, MOUNTS_END, render_mounts(configs))
