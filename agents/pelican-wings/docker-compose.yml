@@ -1,0 +1,76 @@
+# Alloy agent for the Pelican game-server host (pelican-wings).
+#
+# This file is the source of truth: the agent runs on the Pelican host (it needs
+# the local Docker socket, the host cgroups/proc and /var/log/pelican), and this
+# repo only carries its config. See README.md in this directory for the deploy
+# steps and for why the agent cannot live inside the Grafana stack itself.
+#
+# Values come from a local .env next to this file (never committed — the root
+# .gitignore already covers every file named .env):
+#   ALLOY_HOSTNAME    host label stamped on every stream/metric (default pelican-lxc)
+#   DOCKER_GID        host docker group id (default 991)
+#   CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET   Cloudflare Access service token
+
+services:
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    restart: unless-stopped
+
+    # cAdvisor's container metrics need access to host cgroup data and
+    # certain /proc files. Running privileged is the path of least
+    # resistance; alternatives (capabilities allowlist, separate cadvisor
+    # sidecar) are possible but more fiddly.
+    privileged: true
+
+    # Run as root so Pelican daemon log files (often 0600 root:root) are
+    # readable. If your Pelican log files are world-readable, you can drop
+    # this and the image's default non-root user will still work for the
+    # Docker socket and cgroup mounts.
+    user: "0:0"
+
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+
+    volumes:
+      # Config + Alloy's own working state
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+
+      # Docker socket — used by both discovery.docker (logs) and the
+      # cAdvisor exporter (metrics)
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # cAdvisor needs to read host cgroup, proc, and rootfs for container
+      # metrics. rslave propagation lets the container see new mounts (like
+      # newly-started Pelican containers) as they appear on the host.
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /proc:/host/proc:ro
+      - /:/rootfs:ro,rslave
+
+      # Pelican daemon logs (server lifecycle, backups). Path may vary by
+      # Pelican version — verify with: ls -la /var/log/pelican/
+      # If the directory is empty, switch config.alloy to the journal-based
+      # source and replace this with: - /var/log/journal:/var/log/journal:ro
+      - /var/log/pelican:/var/log/pelican:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+
+    environment:
+      - CF_ACCESS_CLIENT_ID=${CF_ACCESS_CLIENT_ID}
+      - CF_ACCESS_CLIENT_SECRET=${CF_ACCESS_CLIENT_SECRET}
+      # Shows up as the `host` label on every log stream and metric.
+      - HOSTNAME=${ALLOY_HOSTNAME:-pelican-lxc}
+
+    # Even running as root, mounting /var/run/docker.sock still benefits
+    # from being a member of the host's docker group on some systems.
+    group_add:
+      - "${DOCKER_GID:-991}"   # host docker GID — getent group docker | cut -d: -f3
+
+    ports:
+      - "127.0.0.1:12345:12345"   # Alloy's UI, bound to localhost only
+
+volumes:
+  alloy-data:
