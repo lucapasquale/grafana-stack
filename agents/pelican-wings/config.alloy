@@ -89,7 +89,7 @@ discovery.relabel "pelican_only" {
   }
   rule {
     source_labels = ["pelican_uuid"]
-    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    regex         = "2a51b920-d7b3-4707-aadf-7ca67b99cd1a"
     target_label  = "game"
     replacement   = "enshrouded"
   }
@@ -521,7 +521,7 @@ prometheus.relabel "add_game_label" {
   }
   rule {
     source_labels = ["name"]
-    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    regex         = "2a51b920-d7b3-4707-aadf-7ca67b99cd1a"
     target_label  = "game"
     replacement   = "enshrouded"
   }
@@ -559,7 +559,7 @@ prometheus.relabel "add_game_label" {
   }
   rule {
     source_labels = ["server_uuid"]
-    regex         = "398cbf9d-578e-4bac-9219-708f6cd9efa6"
+    regex         = "2a51b920-d7b3-4707-aadf-7ca67b99cd1a"
     target_label  = "game"
     replacement   = "enshrouded"
   }
