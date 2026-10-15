@@ -480,6 +480,20 @@ prometheus.scrape "alloy_self" {
   job_name        = "alloy"
 }
 
+// ─── A2S exporter: player counts from the game's Steam query port ───────
+// The sidecar (see docker-compose.yml) speaks the A2S protocol to the game
+// server's *query* port — Enshrouded is 15637/UDP, not the game port. The
+// job name is `a2s_<game>` on purpose: the relabel chain below turns that
+// suffix into the `game` label, because these series carry `server_name`
+// instead of the container name/UUID.
+prometheus.scrape "a2s" {
+  targets         = [{"__address__" = "a2s-exporter:9841"}]
+  metrics_path    = "/metrics"
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.add_game_label.receiver]
+  job_name        = "a2s_enshrouded"
+}
+
 // ─── Stamp metrics with the same `game` label we use on logs ────────────
 // Two parallel UUID rule sets:
 //   * keyed on `name`        — cAdvisor container metrics
@@ -562,6 +576,16 @@ prometheus.relabel "add_game_label" {
     regex         = "2a51b920-d7b3-4707-aadf-7ca67b99cd1a"
     target_label  = "game"
     replacement   = "enshrouded"
+  }
+
+  // ─── A2S exporter series (one scrape job per game) ─────────────────
+  // These carry `server_name`, not the container name/UUID, so the rules
+  // above cannot label them: take the game from the job name instead.
+  rule {
+    source_labels = ["job"]
+    regex         = "a2s_(.*)"
+    target_label  = "game"
+    replacement   = "$1"
   }
 
   // ─── Static labels to mirror Loki side ──────────────────────────────

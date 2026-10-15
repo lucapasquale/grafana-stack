@@ -10,6 +10,8 @@
 #   ALLOY_HOSTNAME    host label stamped on every stream/metric (default pelican-lxc)
 #   DOCKER_GID        host docker group id (default 991)
 #   CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET   Cloudflare Access service token
+#   A2S_TARGET        host:port of a game server's A2S *query* port for the
+#                     a2s-exporter sidecar (default 192.168.1.115:15637)
 
 services:
   alloy:
@@ -71,6 +73,20 @@ services:
 
     ports:
       - "127.0.0.1:12345:12345"   # Alloy's UI, bound to localhost only
+
+  # Player counts straight from the game servers' Steam A2S *query* port.
+  # One exporter per game server; Alloy scrapes it over this compose network
+  # as job="a2s_<game>" (see config.alloy). Runs here because this is the
+  # host the game containers publish their ports on.
+  a2s-exporter:
+    image: armsnyder/a2s-exporter:latest
+    container_name: a2s-exporter
+    restart: unless-stopped
+    environment:
+      # host:port of the QUERY port (Enshrouded: 15637/UDP — not the game port)
+      - A2S_EXPORTER_QUERY_ADDRESS=${A2S_TARGET:-192.168.1.115:15637}
+    ports:
+      - "127.0.0.1:9841:9841"   # debug only: curl -s 127.0.0.1:9841/metrics
 
 volumes:
   alloy-data:

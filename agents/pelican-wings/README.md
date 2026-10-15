@@ -49,6 +49,34 @@ with that name at any depth.
 The dashboards that read this data live in `dashboards/pelican/` and are
 provisioned by Grafana Git Sync — see the repository README.
 
+## Player counts (the `a2s-exporter` sidecar)
+
+Steam's **A2S** query protocol is what the in-game server browser reads, and it
+answers on each server's **query** port — for Enshrouded that is 15637/UDP, not
+the game port (verified against this server: A2S_INFO returns `players` and
+`max_players`, and A2S_PLAYER lists each connected session with its duration; the
+game sends empty player *names*, so the counts are the useful part).
+
+`a2s-exporter` (`armsnyder/a2s-exporter`) polls that port and serves
+`a2s_server_up`, `a2s_server_players`, `a2s_server_max_players`,
+`a2s_player_count`, `a2s_player_duration`, … on `:9841`. It runs **on this host**
+because that is where the game containers publish their ports. Alloy scrapes it
+with `job_name = "a2s_<game>"`, and the relabel chain converts that job name into
+the `game` label — these series carry `server_name`, not the container UUID, so
+the UUID rules cannot label them.
+
+```bash
+# after a deploy: does it see the server? (the image is minimal — no shell —
+# so read it through the host-bound port instead of docker exec)
+curl -s 127.0.0.1:9841/metrics | grep -E 'a2s_server_(up|players|max_players)'
+```
+
+Adding another game that speaks A2S: one more sidecar service (its own
+`container_name` and query-port variable) plus one more `prometheus.scrape` with
+`job_name = "a2s_<game>"`. A game that does not answer A2S on its query port
+needs another source — the Project Zomboid join counter in `config.alloy` is that
+pattern.
+
 ## The UUID → game map (read this before adding a server)
 
 Pelican names each game container after its server UUID, so every label that
