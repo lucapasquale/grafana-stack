@@ -396,7 +396,7 @@
                       "spec": {
                         "editorMode": "code",
                         "exemplar": false,
-                        "expr": "pelican_game_version_info{game=\"$server\"}",
+                        "expr": "loki_process_custom_pelican_game_version_info{game=\"$server\"}",
                         "instant": true,
                         "legendFormat": "{{gameversion}}",
                         "range": false
