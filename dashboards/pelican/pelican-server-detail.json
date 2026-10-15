@@ -157,7 +157,7 @@
                         "name": "P8E80F9AEF21F6940"
                       },
                       "spec": {
-                        "direction": "forward",
+                        "direction": "backward",
                         "editorMode": "code",
                         "expr": "{game=\"$server\"}",
                         "legendFormat": "",
@@ -188,7 +188,7 @@
                 "showControls": false,
                 "showLabels": false,
                 "showTime": true,
-                "sortOrder": "Ascending",
+                "sortOrder": "Descending",
                 "syntaxHighlighting": false,
                 "unwrappedColumns": false,
                 "wrapLogMessage": true
@@ -832,119 +832,6 @@
             }
           }
         }
-      },
-      "panel-9": {
-        "kind": "Panel",
-        "spec": {
-          "id": 9,
-          "title": "Log rate by level",
-          "description": "Lines per second, grouped by extracted log level.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "loki",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "P8E80F9AEF21F6940"
-                      },
-                      "spec": {
-                        "direction": "backward",
-                        "editorMode": "code",
-                        "expr": "sum by (level) (rate({game=\"$server\"}[1m]))",
-                        "legendFormat": "{{level}}",
-                        "queryType": "range"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "12.4.1",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "desc"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "logs/sec",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "axisSoftMin": 0,
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 30,
-                    "gradientMode": "opacity",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "linear",
-                    "lineWidth": 1,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "never",
-                    "showValues": false,
-                    "spanNulls": false,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "normal"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
       }
     },
     "layout": {
@@ -1008,7 +895,7 @@
             "spec": {
               "x": 0,
               "y": 4,
-              "width": 12,
+              "width": 8,
               "height": 8,
               "element": {
                 "kind": "ElementReference",
@@ -1019,9 +906,9 @@
           {
             "kind": "GridLayoutItem",
             "spec": {
-              "x": 12,
+              "x": 8,
               "y": 4,
-              "width": 12,
+              "width": 8,
               "height": 8,
               "element": {
                 "kind": "ElementReference",
@@ -1032,9 +919,9 @@
           {
             "kind": "GridLayoutItem",
             "spec": {
-              "x": 0,
-              "y": 12,
-              "width": 12,
+              "x": 16,
+              "y": 4,
+              "width": 8,
               "height": 8,
               "element": {
                 "kind": "ElementReference",
@@ -1045,21 +932,8 @@
           {
             "kind": "GridLayoutItem",
             "spec": {
-              "x": 12,
-              "y": 12,
-              "width": 12,
-              "height": 8,
-              "element": {
-                "kind": "ElementReference",
-                "name": "panel-9"
-              }
-            }
-          },
-          {
-            "kind": "GridLayoutItem",
-            "spec": {
               "x": 0,
-              "y": 20,
+              "y": 12,
               "width": 24,
               "height": 16,
               "element": {
