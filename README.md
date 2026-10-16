@@ -73,8 +73,8 @@ and run the script.
 
 ### Botchini
 
-- **Botchini - Overview**: streaming (live streams, starts, viewers and a
-  stream event log), then **Stream quality: what to watch**, a line of stats
+- **Botchini - Overview**: streaming (live streams, starts, viewers, and a
+  chart of the people watching, by whose stream), then **Stream quality: what to watch**, a line of stats
   that turn yellow or red when something's off: viewers' packet loss, fps,
   freezes, stereo audio and audio their browser had to make up, and sharers
   whose browser holds back quality. Two graphs below follow viewers' loss and

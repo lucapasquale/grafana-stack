@@ -6,7 +6,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 4,
+  "version": 5,
   "refresh": "30s",
   "time": {
     "from": "now-24h",
@@ -314,7 +314,8 @@
     {
       "id": 22,
       "type": "timeseries",
-      "title": "Streams started and viewers joining",
+      "title": "People watching",
+      "description": "Viewers connected to the streams, stacked by whose stream they watch. Someone watching two streams at once counts in both.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -332,27 +333,25 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "sum(increase(botchini_screens_room_live_count{job=\"$job\"}[$__rate_interval]))",
-          "legendFormat": "Streams started"
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "sum(increase(botchini_screens_viewer_join_count{job=\"$job\"}[$__rate_interval]))",
-          "legendFormat": "Viewers started watching"
+          "expr": "sum by (screen_owner_name) (botchini_screens_room_viewers{job=\"$job\"}) > 0",
+          "legendFormat": "{{screen_owner_name}}'s stream"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "short",
           "decimals": 0,
+          "min": 0,
           "custom": {
-            "drawStyle": "bars",
-            "fillOpacity": 80,
-            "lineWidth": 1
+            "drawStyle": "line",
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 40,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "spanNulls": false
           }
         },
         "overrides": []
@@ -365,44 +364,8 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "none"
+          "sort": "desc"
         }
-      }
-    },
-    {
-      "id": 25,
-      "type": "logs",
-      "title": "Stream events",
-      "datasource": {
-        "type": "loki",
-        "uid": "P8E80F9AEF21F6940"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 13
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "P8E80F9AEF21F6940"
-          },
-          "queryType": "range",
-          "expr": "{service=\"botchini\"} | json | metadata_event=~\"screen_share_live|screen_viewer_joined\" | line_format `{{ if eq .metadata_event \"screen_share_live\" }}\ud83d\udd34 {{ .metadata_screen_owner_name }} started streaming \"{{ .metadata_screen_title }}\"{{ else }}\ud83d\udc40 Someone started watching {{ .metadata_screen_owner_name }}'s stream ({{ .metadata_viewer_count }} watching){{ end }}`"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "sortOrder": "Descending",
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "prettifyLogMessage": false,
-        "showCommonLabels": false,
-        "showLabels": false
       }
     },
     {
@@ -414,7 +377,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 21
+        "y": 13
       },
       "panels": []
     },
@@ -431,7 +394,7 @@
         "h": 4,
         "w": 4,
         "x": 0,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -498,7 +461,7 @@
         "h": 4,
         "w": 4,
         "x": 4,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -565,7 +528,7 @@
         "h": 4,
         "w": 4,
         "x": 8,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -632,7 +595,7 @@
         "h": 4,
         "w": 4,
         "x": 12,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -699,7 +662,7 @@
         "h": 4,
         "w": 4,
         "x": 16,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -766,7 +729,7 @@
         "h": 4,
         "w": 4,
         "x": 20,
-        "y": 22
+        "y": 14
       },
       "targets": [
         {
@@ -833,7 +796,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 18
       },
       "targets": [
         {
@@ -915,7 +878,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 18
       },
       "targets": [
         {
