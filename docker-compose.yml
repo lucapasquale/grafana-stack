@@ -608,8 +608,12 @@ services:
       - "--housekeeping_interval=30s"
       # How long cAdvisor keeps container history in memory
       - "--storage_duration=5m"
-    mem_limit: 256m
-    memswap_limit: 256m
+    # 384m, not 256m: cAdvisor's RSS peaked at 222MiB within minutes of its
+    # first start on this LXC (87% of the old cap) and does not settle — it
+    # sawtooths with the container count, which only grows. An OOM here takes
+    # out the per-container memory series everything else depends on.
+    mem_limit: 384m
+    memswap_limit: 384m
     logging: *default-logging
     restart: unless-stopped
     networks:
