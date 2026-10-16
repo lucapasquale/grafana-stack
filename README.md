@@ -73,11 +73,17 @@ and run the script.
 
 ### Botchini
 
-- **Botchini - Overview**: Discord commands (volume, failures, p95 response
-  time), music playback (tracks started, failures by reason), screen sharing
-  (streams started, viewers joining and a stream event log, with stream starts
-  marked on every graph), Twitch/YouTube API health, and recent error logs
-  from Loki
+- **Botchini - Overview**: streaming (live streams, starts, viewers and a
+  stream event log), then **Stream quality: what to watch**, a line of stats
+  that turn yellow or red when something's off: viewers' packet loss, fps,
+  freezes, stereo audio and audio their browser had to make up, and sharers
+  whose browser holds back quality. Two graphs below follow viewers' loss and
+  fps by source, and why sharers' browsers held back
+- **Botchini - Stream quality**: where to dig in from there. What viewers'
+  browsers receive (bitrate, fps, resolution, dropped frames, freezes, loss,
+  jitter, playout delay, concealed audio, stereo) and what sharers' browsers
+  send (bitrate, fps, resolution, round trip, loss, and why they held back
+  quality). The browsers report every 10 seconds, by the screen's source
 - **Botchini - PromEx \***: BEAM, application, Ecto and Phoenix dashboards
   exported from Botchini with `mix prom_ex.dashboard.export`
 
