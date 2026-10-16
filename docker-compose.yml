@@ -1,3 +1,12 @@
+# Every container writes its stdout to a json-file on the LXC's disk, unbounded
+# by default: cap it, or a chatty service can fill the filesystem and take the
+# stack down with it.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 configs:
   grafana_datasources:
     content: |
@@ -61,6 +70,30 @@ configs:
         - job_name: "prometheus"
           static_configs:
             - targets: ["localhost:9090"]
+
+        # The stack's own containers. The per-service /metrics jobs give each
+        # process's RSS; the cadvisor job gives per-container usage against the
+        # mem_limit below, which is the number that matters when something
+        # grows without a bound. Nothing scraped the stack itself before.
+        - job_name: "cadvisor"
+          static_configs:
+            - targets: ["cadvisor:8080"]
+
+        - job_name: "grafana"
+          static_configs:
+            - targets: ["grafana:3000"]
+
+        - job_name: "loki"
+          static_configs:
+            - targets: ["loki:3100"]
+
+        - job_name: "tempo"
+          static_configs:
+            - targets: ["tempo:3200"]
+
+        - job_name: "alloy"
+          static_configs:
+            - targets: ["alloy:12345"]
 
   loki_config:
     content: |
@@ -461,6 +494,7 @@ services:
       - DISCORD_ALERT_WEBHOOK_URL=${DISCORD_ALERT_WEBHOOK_URL:-http://localhost/discord-webhook-not-configured}
     mem_limit: 640m
     memswap_limit: 640m
+    logging: *default-logging
     restart: unless-stopped
     networks:
       - observability
@@ -480,6 +514,7 @@ services:
       - "--storage.tsdb.retention.time=15d"
     mem_limit: 512m
     memswap_limit: 512m
+    logging: *default-logging
     restart: unless-stopped
     networks:
       - observability
@@ -496,6 +531,7 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
     mem_limit: 512m
     memswap_limit: 512m
+    logging: *default-logging
     restart: unless-stopped
     networks:
       - observability
@@ -513,6 +549,7 @@ services:
     command: ["-config.file=/etc/tempo.yaml"]
     mem_limit: 768m
     memswap_limit: 768m
+    logging: *default-logging
     restart: unless-stopped
     networks:
       - observability
@@ -533,11 +570,41 @@ services:
     # Alloy's UI listens on 127.0.0.1 by default, which isn't reachable through
     # the published port, so bind it to all interfaces inside the container
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
-    mem_limit: 256m
-    memswap_limit: 256m
+    # 384m, not 256m: Alloy's own RSS measured 243MiB with the config in this
+    # file, i.e. ~95% of the cap it shipped with.
+    mem_limit: 384m
+    memswap_limit: 384m
+    logging: *default-logging
     restart: unless-stopped
     depends_on:
       - loki
+    networks:
+      - observability
+
+  # cAdvisor: per-container CPU and memory for the stack's own containers.
+  # It reads the host's cgroups, /proc and rootfs, which is why it needs
+  # privileged mode — the same recipe the Pelican agent uses. If it ever
+  # refuses to start inside this LXC, the fallback is Alloy's embedded
+  # prometheus.exporter.cadvisor (what agents/pelican-wings uses).
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    command:
+      - "--housekeeping_interval=30s"
+      # How long cAdvisor keeps container history in memory
+      - "--storage_duration=5m"
+    mem_limit: 256m
+    memswap_limit: 256m
+    logging: *default-logging
+    restart: unless-stopped
     networks:
       - observability
 

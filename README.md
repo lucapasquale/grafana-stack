@@ -36,6 +36,7 @@ Self-hosted observability stack for Portainer deployment on Proxmox. Receives **
 | **Tempo**      | 4318  | Distributed traces (OTLP HTTP)                   |
 | **Alloy**      | 12345 | Local Docker log collection                      |
 | **Alloy**      | 9095  | Remote log push endpoint (Loki push API)         |
+| **cAdvisor**   | 8080  | Per-container CPU/memory for the stack's own containers |
 
 ## Deploy to Portainer
 
