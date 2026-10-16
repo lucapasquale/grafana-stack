@@ -89,7 +89,11 @@ configs:
 
         - job_name: "tempo"
           static_configs:
-            - targets: ["tempo:3200"]
+            # 3100, not Tempo's 3200 default: this config sets
+            # server.http_listen_port: 3100 (same port the Grafana datasource
+            # uses), so 3200 never answers — the scrape came back
+            # "connection refused" on tempo:3200.
+            - targets: ["tempo:3100"]
 
         - job_name: "alloy"
           static_configs:
@@ -588,8 +592,11 @@ services:
   # prometheus.exporter.cadvisor (what agents/pelican-wings uses).
   cadvisor:
     image: ghcr.io/google/cadvisor:v0.60.6
-    ports:
-      - "8080:8080"
+    # Deliberately no published port: 8080 on this LXC already belongs to
+    # qBittorrent's WebUI, and "8080:8080" makes the container fail to create
+    # ("port is already allocated" — the scrape then dies with
+    # "lookup cadvisor: no such host"). Prometheus scrapes cadvisor:8080 over
+    # the observability network, which does not need the host port.
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
