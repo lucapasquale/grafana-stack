@@ -150,7 +150,6 @@ configs:
             processors:
               - service-graphs
               - span-metrics
-              - local-blocks
 
   alloy_config:
     content: |
@@ -460,6 +459,8 @@ services:
       # Grafana won't start if the alerting contact point has no URL, so fall back
       # to a placeholder until the webhook is set (alerts just fail to deliver)
       - DISCORD_ALERT_WEBHOOK_URL=${DISCORD_ALERT_WEBHOOK_URL:-http://localhost/discord-webhook-not-configured}
+    mem_limit: 640m
+    memswap_limit: 640m
     restart: unless-stopped
     networks:
       - observability
@@ -477,6 +478,8 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--web.enable-remote-write-receiver"
       - "--storage.tsdb.retention.time=15d"
+    mem_limit: 512m
+    memswap_limit: 512m
     restart: unless-stopped
     networks:
       - observability
@@ -491,6 +494,8 @@ services:
       - source: loki_config
         target: /etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
+    mem_limit: 512m
+    memswap_limit: 512m
     restart: unless-stopped
     networks:
       - observability
@@ -506,6 +511,8 @@ services:
       - source: tempo_config
         target: /etc/tempo.yaml
     command: ["-config.file=/etc/tempo.yaml"]
+    mem_limit: 768m
+    memswap_limit: 768m
     restart: unless-stopped
     networks:
       - observability
@@ -526,6 +533,8 @@ services:
     # Alloy's UI listens on 127.0.0.1 by default, which isn't reachable through
     # the published port, so bind it to all interfaces inside the container
     command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    mem_limit: 256m
+    memswap_limit: 256m
     restart: unless-stopped
     depends_on:
       - loki
