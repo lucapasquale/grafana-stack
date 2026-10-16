@@ -474,6 +474,233 @@ configs:
                     conditions:
                       - evaluator: { type: lt, params: [1] }
 
+  grafana_alerting_homelab:
+    content: |
+      apiVersion: 1
+
+      # Rules for the stack itself and for the LXC it runs in. The Discord contact
+      # point and the notification policy live in botchini.yaml; these rules only
+      # reference it by name, so the two files never fight over the receiver.
+      #
+      # Deliberately NOT covered here:
+      #
+      #   * The LXC's own memory limit (6 GiB). cAdvisor runs *inside* the container
+      #     and cgroup namespaces are off, so it reports the Proxmox node's memory
+      #     (30.7 GiB) and the node's root cgroup — never the container's 6 GiB.
+      #     /sys/fs/cgroup inside an LXC is the host's. That check belongs to the
+      #     watchdog on the Hermes host, which asks the Proxmox API: the only vantage
+      #     point that still answers when the container is unresponsive (which is
+      #     exactly the failure we are guarding against).
+      #   * Disk on the other 13 guests, same reason: there is no node-exporter.
+      #     The watchdog reads every guest's RRD from the Proxmox API.
+      #
+      # What this file does catch, from inside: a scrape target that died silently,
+      # a container walking up to its mem_limit, a container crash-looping under
+      # `restart: unless-stopped`, an OOM kill, and the root filesystem filling up.
+      groups:
+        - orgId: 1
+          name: homelab
+          folder: Homelab
+          interval: 1m
+          rules:
+            # A scrape target that stops answering breaks every rule that depends on
+            # its metrics, silently. This is the failure that let tempo:3200 sit down
+            # after a redeploy: nothing fired, because nothing was watching the
+            # watchers. noDataState is Alerting for the same reason — if Prometheus
+            # itself is unreachable, that is news, not "OK".
+            - uid: homelab-stack-target-down
+              title: Stack metrics target is down
+              condition: C
+              for: 5m
+              noDataState: Alerting
+              execErrState: Error
+              labels:
+                service: grafana-stack
+                severity: critical
+              notification_settings:
+                receiver: Discord
+                group_by: ["alertname", "job"]
+                repeat_interval: 4h
+              annotations:
+                summary: "Prometheus can't scrape {{ .Labels.job }}"
+                description: "One of the stack's own targets stopped answering. Check its last error under Prometheus > Status > Targets. Fix it before trusting any other alert: a target that returns nothing blinds the rules that query it."
+              data:
+                - refId: A
+                  relativeTimeRange: { from: 600, to: 0 }
+                  datasourceUid: PBFA97CFB590B2093
+                  model:
+                    refId: A
+                    expr: min by (job) (up{job=~"alloy|cadvisor|grafana|loki|prometheus|tempo"})
+                    instant: true
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                - refId: C
+                  datasourceUid: __expr__
+                  model:
+                    refId: C
+                    type: threshold
+                    expression: B
+                    conditions:
+                      - evaluator: { type: lt, params: [1] }
+
+            # Only the six containers that declare mem_limit have a limit to compare
+            # against: the other twelve in this LXC (the *arr stack, qBittorrent,
+            # Arcane) are unlimited, so a runaway one of those shows up as the LXC
+            # itself growing — the watchdog's job, not this rule's.
+            - uid: homelab-container-memory-high
+              title: Container is close to its memory limit
+              condition: C
+              for: 15m
+              noDataState: OK
+              execErrState: Error
+              labels:
+                service: grafana-stack
+                severity: warning
+              notification_settings:
+                receiver: Discord
+                group_by: ["alertname", "name"]
+                repeat_interval: 4h
+              annotations:
+                summary: "{{ .Labels.name }} is using {{ humanizePercentage .Values.B.Value }} of its memory limit"
+                description: "Above 85% of mem_limit for 15 minutes. The limit is what protects the LXC: the kernel kills the biggest process inside the container instead of freezing the whole host. This is the warning before a container dies and takes its dependants with it — Alloy carries both the logs and the scrapes. Raise its mem_limit or find what grew."
+              data:
+                - refId: A
+                  relativeTimeRange: { from: 900, to: 0 }
+                  datasourceUid: PBFA97CFB590B2093
+                  model:
+                    refId: A
+                    expr: max by (name) (container_memory_working_set_bytes{name=~".+"} / (container_spec_memory_limit_bytes{name=~".+"} > 0))
+                    instant: true
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                - refId: C
+                  datasourceUid: __expr__
+                  model:
+                    refId: C
+                    type: threshold
+                    expression: B
+                    conditions:
+                      - evaluator: { type: gt, params: [0.85] }
+
+            # `restart: unless-stopped` turns a crash loop into a quiet container that
+            # keeps coming back: from the outside everything looks "up".
+            - uid: homelab-container-restart-loop
+              title: Container is restarting over and over
+              condition: C
+              for: 5m
+              noDataState: OK
+              execErrState: Error
+              labels:
+                service: grafana-stack
+                severity: critical
+              notification_settings:
+                receiver: Discord
+                group_by: ["alertname", "name"]
+                repeat_interval: 4h
+              annotations:
+                summary: '{{ .Labels.name }} restarted {{ printf "%.0f" .Values.B.Value }} times in 15 minutes'
+                description: "restart: unless-stopped hides this: the container keeps coming back and every restart loses whatever it was holding. Read its logs to find the reason."
+              data:
+                - refId: A
+                  relativeTimeRange: { from: 900, to: 0 }
+                  datasourceUid: PBFA97CFB590B2093
+                  model:
+                    refId: A
+                    expr: max by (name) (changes(container_start_time_seconds{job="cadvisor"}[15m]))
+                    instant: true
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                - refId: C
+                  datasourceUid: __expr__
+                  model:
+                    refId: C
+                    type: threshold
+                    expression: B
+                    conditions:
+                      - evaluator: { type: gt, params: [2] }
+
+            # With mem_limit in place, an OOM kill is the designed failure mode: the
+            # container dies instead of the LXC freezing. It is still worth a message,
+            # because it means the limit was reached.
+            - uid: homelab-container-oom-killed
+              title: Container was OOM-killed
+              condition: C
+              for: 0s
+              noDataState: OK
+              execErrState: Error
+              labels:
+                service: grafana-stack
+                severity: warning
+              notification_settings:
+                receiver: Discord
+                group_by: ["alertname", "name"]
+                repeat_interval: 4h
+              annotations:
+                summary: "{{ .Labels.name }} was killed by the kernel for using too much memory"
+                description: "The container hit its mem_limit and the kernel killed its biggest process. It comes back on its own, but the work in flight is lost. Raise the limit or fix the leak."
+              data:
+                - refId: A
+                  relativeTimeRange: { from: 900, to: 0 }
+                  datasourceUid: PBFA97CFB590B2093
+                  model:
+                    refId: A
+                    expr: max by (name) (increase(container_oom_events_total{job="cadvisor"}[15m]))
+                    instant: true
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                - refId: C
+                  datasourceUid: __expr__
+                  model:
+                    refId: C
+                    type: threshold
+                    expression: B
+                    conditions:
+                      - evaluator: { type: gt, params: [0] }
+
+            # The device is the LXC's own root LV, so this keeps working after the
+            # disk is grown (the limit moves with it). This one matters because a full
+            # filesystem is the failure mem_limit cannot protect against: docker can't
+            # write, Loki can't compact, and the stack stops in ways that look
+            # unrelated to disk.
+            - uid: homelab-lxc-rootfs-full
+              title: Arcane LXC root filesystem almost full
+              condition: C
+              for: 10m
+              noDataState: OK
+              execErrState: Error
+              labels:
+                severity: critical
+              notification_settings:
+                receiver: Discord
+                group_by: ["alertname"]
+                repeat_interval: 4h
+              annotations:
+                summary: "The Arcane LXC root filesystem is {{ humanizePercentage .Values.B.Value }} full"
+                description: "Prometheus keeps 15 days of data and every container writes logs here. Grow the disk from the Proxmox host, without stopping anything: pct set 105 -rootfs local-lvm:vm-105-disk-0,size=32G"
+              data:
+                - refId: A
+                  relativeTimeRange: { from: 600, to: 0 }
+                  datasourceUid: PBFA97CFB590B2093
+                  model:
+                    refId: A
+                    expr: max(container_fs_usage_bytes{device="/dev/mapper/pve-vm--105--disk--0"} / container_fs_limit_bytes{device="/dev/mapper/pve-vm--105--disk--0"})
+                    instant: true
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                - refId: C
+                  datasourceUid: __expr__
+                  model:
+                    refId: C
+                    type: threshold
+                    expression: B
+                    conditions:
+                      - evaluator: { type: gt, params: [0.9] }
+
   # END GENERATED CONFIGS
 
 services:
@@ -489,6 +716,8 @@ services:
       # BEGIN GENERATED MOUNTS (scripts/embed_configs.py)
       - source: grafana_alerting_botchini
         target: /etc/grafana/provisioning/alerting/botchini.yaml
+      - source: grafana_alerting_homelab
+        target: /etc/grafana/provisioning/alerting/homelab.yaml
       # END GENERATED MOUNTS
     environment:
       - GF_SECURITY_ADMIN_USER=admin

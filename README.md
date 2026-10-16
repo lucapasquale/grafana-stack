@@ -57,8 +57,8 @@ Grafana is provisioned with dashboards and alert rules from this repo:
 | `alerting/`            | Alert rules, contact points and notification policies                        |
 | `agents/<host>/`       | Config for the Alloy agents that push data from other hosts into this stack   |
 
-Portainer doesn't mount files from the repository, so these files are embedded
-inline into `docker-compose.yml`. **After changing any of them, run:**
+Portainer and Arcane don't mount files from the repository, so these files are
+embedded inline into `docker-compose.yml`. **After changing any of them, run:**
 
 ```bash
 python3 scripts/embed_configs.py
@@ -99,6 +99,27 @@ Alerts are sent to the Discord webhook in `DISCORD_ALERT_WEBHOOK_URL`:
 > **Note:** Grafana refuses to start when the Discord contact point has no URL,
 > so `DISCORD_ALERT_WEBHOOK_URL` falls back to a placeholder when unset. Alerts
 > just fail to deliver until the real webhook is configured.
+
+### The stack itself
+
+A second rule group, `alerting/homelab.yaml` (folder **Homelab**), watches the
+observability stack and the LXC it runs in — the blind spot that let a memory
+leak freeze the container unnoticed while every alert in the table above stayed
+green:
+
+| Alert | Fires when |
+| ----- | ---------- |
+| Stack metrics target is down | One of the stack's own scrape targets returns nothing for 5 minutes, or Prometheus itself can't be queried |
+| Container is close to its memory limit | A container sits above 85% of its `mem_limit` for 15 minutes |
+| Container is restarting over and over | A container restarted more than twice in 15 minutes, which `restart: unless-stopped` otherwise hides |
+| Container was OOM-killed | The kernel killed a process inside a container for hitting its `mem_limit` |
+| Arcane LXC root filesystem almost full | The LXC's root LV is above 90% full |
+
+Two things are deliberately **not** here, because nothing inside the container
+can see them: the LXC's own 6 GiB memory limit (cAdvisor inside the LXC reports
+the Proxmox node's memory — cgroup namespaces are off) and disk on the other
+guests. Both are covered by the watchdog on the Hermes host, which reads them
+from the Proxmox API and therefore keeps working when the LXC itself is mute.
 
 ### Pelican game servers
 
